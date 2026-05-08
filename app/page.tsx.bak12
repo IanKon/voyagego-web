@@ -45,7 +45,6 @@ const TR: Record<string, Record<string, string>> = {
     city: "City", checkin: "Check-in", checkout: "Check-out", pickup: "Pick-up location",
     return_btn: "Round-trip", oneway: "One way",
     popular: "Popular destinations", popular_sub: "Get inspired for your next trip — explore cities loved by travelers.",
-    popular_week: "Fly to a popular city soon", popular_week_sub: "Cheapest fares to bucket-list cities, departing in the next 30 days.",
     hot_deals: "Limited-time deals", hot_deals_sub: "Real prices from trusted partners — book before they're gone.",
     expires: "expires", no_deals: "No live deals right now — try the search above.",
     how_title: "Simple, fast, transparent", how_sub: "Three steps from idea to your destination.",
@@ -74,7 +73,6 @@ const TR: Record<string, Record<string, string>> = {
     city: "Город", checkin: "Заезд", checkout: "Выезд", pickup: "Город получения",
     return_btn: "Туда-обратно", oneway: "В одну сторону",
     popular: "Популярные направления", popular_sub: "Вдохновись для следующей поездки — города, любимые путешественниками.",
-    popular_week: "Полететь в популярный город скоро", popular_week_sub: "Самые дешёвые билеты в топовые города с вылетом в ближайший месяц.",
     hot_deals: "Скидки сейчас", hot_deals_sub: "Реальные цены от проверенных партнёров — успей пока не разобрали.",
     expires: "до", no_deals: "Прямо сейчас активных скидок нет — попробуй поиск выше.",
     how_title: "Просто, быстро, прозрачно", how_sub: "Три шага от идеи до направления.",
@@ -278,7 +276,6 @@ export default function Page() {
   const [resultsTitle, setResultsTitle] = useState("Results");
   const [resultsHTML, setResultsHTML] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
-  const [popularCards, setPopularCards] = useState<Card[]>([]);
   const [geo, setGeo] = useState<{ city: string; airport: string; country: string }>({
     city: "Lisbon", airport: "LIS", country: "PT",
   });
@@ -305,23 +302,14 @@ export default function Page() {
       .catch(() => { /* keep default Lisbon */ });
   }, []);
 
-  // ---------- load both card lists when origin/lang/cur changes ----------
+  // ---------- load cards (tier1 + tier2) when origin/lang/cur changes ----------
   const loadCards = useCallback(async () => {
-    const useAviasales = lang === "ru" || lang === "uk" || cur === "RUB";
-    const langForApi = useAviasales ? "ru" : lang;
-
-    // Fire both endpoints in parallel — they're independent, no point waiting
-    const [cheapAnywhere, popularNextWeek] = await Promise.allSettled([
-      fetch(`/api/cards?origin=${geo.airport}&lang=${langForApi}&currency=${cur}`).then(r => r.json()),
-      fetch(`/api/cards-popular?origin=${geo.airport}&lang=${langForApi}&currency=${cur}&days=60`).then(r => r.json()),
-    ]);
-
-    if (cheapAnywhere.status === "fulfilled") {
-      setCards(cheapAnywhere.value.cards || []);
-    }
-    if (popularNextWeek.status === "fulfilled") {
-      setPopularCards(popularNextWeek.value.cards || []);
-    }
+    try {
+      const useAviasales = lang === "ru" || lang === "uk" || cur === "RUB";
+      const r = await fetch(`/api/cards?origin=${geo.airport}&lang=${useAviasales ? "ru" : lang}`);
+      const data = await r.json();
+      setCards(data.cards || []);
+    } catch { /* DestCards has its own defaults */ }
   }, [lang, cur, geo.airport]);
   useEffect(() => { loadCards(); }, [loadCards]);
 
@@ -621,9 +609,6 @@ export default function Page() {
       {/* DESTINATIONS — DestCards renders Hot deals + Popular sections itself */}
       <DestCards
         cards={cards}
-        popularCards={popularCards}
-        popularLabel={t(lang, "popular_week")}
-        popularSubLabel={t(lang, "popular_week_sub")}
         curSym={curSym}
         rate={RATES[cur]}
         lang={lang}

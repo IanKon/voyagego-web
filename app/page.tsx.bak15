@@ -313,7 +313,7 @@ export default function Page() {
     // Fire both endpoints in parallel — they're independent, no point waiting
     const [cheapAnywhere, popularNextWeek] = await Promise.allSettled([
       fetch(`/api/cards?origin=${geo.airport}&lang=${langForApi}&currency=${cur}`).then(r => r.json()),
-      fetch(`/api/cards-popular?origin=${geo.airport}&lang=${langForApi}&currency=${cur}&days=60`).then(r => r.json()),
+      fetch(`/api/cards-popular?origin=${geo.airport}&lang=${langForApi}&currency=${cur}&days=30`).then(r => r.json()),
     ]);
 
     if (cheapAnywhere.status === "fulfilled") {

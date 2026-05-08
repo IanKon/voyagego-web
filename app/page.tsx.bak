@@ -1,0 +1,963 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import DestCards, { Deal } from "./components/DestCards";
+import { IconSprites, HeroSvg } from "./components/SvgSprites";
+
+// =================================================================
+//  PARTNER IDS (mirrors P object in original index.html)
+// =================================================================
+const P = {
+  tp: { marker: "525753" },
+  gyg: { id: "5RHBGN7" },
+  trip: { a: "8192276", s: "309639758" },
+  omio: { base: "https://omio.sjv.io/c/7271483/409973/7385" },
+  dc: { id: "IanKon" },
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
+const AIRLINES: Record<string, string> = {
+  AA: "American Airlines", AF: "Air France", BA: "British Airways",
+  FR: "Ryanair", IB: "Iberia", KL: "KLM", LH: "Lufthansa",
+  MW: "Moov", PC: "Pegasus", TK: "Turkish Airlines", TO: "Transavia",
+  TP: "TAP Portugal", U2: "easyJet", VY: "Vueling", W6: "Wizzair",
+  EK: "Emirates", QR: "Qatar Airways",
+};
+const airName = (c: string) => AIRLINES[c] || c;
+
+// =================================================================
+//  LANGUAGES + TRANSLATIONS
+// =================================================================
+const LANGS = [
+  { c: "en", f: "GB", n: "English" },
+  { c: "ru", f: "RU", n: "Russian" },
+  { c: "uk", f: "UA", n: "Ukrainian" },
+  { c: "fr", f: "FR", n: "French" },
+  { c: "de", f: "DE", n: "Deutsch" },
+  { c: "es", f: "ES", n: "Spanish" },
+  { c: "it", f: "IT", n: "Italiano" },
+  { c: "pt", f: "PT", n: "Portuguese" },
+  { c: "tr", f: "TR", n: "Turkish" },
+  { c: "pl", f: "PL", n: "Polski" },
+];
+
+type Tr = Record<string, string>;
+const TR: Record<string, Tr> = {
+  en: {
+    hero_title: "Your whole trip,<br>in one place.",
+    hero_sub: "Flights, hotels, tours and routes — search smart, save more.",
+    popular: "Popular destinations", how_title: "How VoyageGo works",
+    partners: "Trusted partners", step1: "Choose",
+    step1d: "Search smart and compare across trusted partners in one place.",
+    step2: "Book", step2d: "Confirm flights, stays and tours through trusted brands.",
+    step3: "Travel", step3d: "Day-by-day itinerary follows you in bot, app and web.",
+    see_all: "See all", from_price: "from",
+    footer_desc: "Flights, hotels, tours and itineraries — your whole trip in one place.",
+    ft_about: "About", ft_partners: "Partners", ft_careers: "Careers", ft_contact: "Contact",
+    ft_terms: "Terms", ft_privacy: "Privacy", ft_cookies: "Cookies",
+    nav_dest: "Destinations", nav_how: "How it works", search: "Search",
+    tab_flights: "Flights", tab_trains: "Trains", tab_buses: "Buses", tab_hotels: "Hotels",
+    tab_tours: "Tours", tab_cars: "Cars", tab_ferry: "Ferry",
+    from: "From", to: "To", date: "Date", return_date: "Return", city: "City",
+    checkin: "Check-in", checkout: "Check-out", pickup: "Pick-up city",
+    return_btn: "Return", oneway: "One way", tg_btn: "Telegram Bot",
+    ft_flights: "Flights", ft_hotels: "Hotels", ft_tours: "Tours", ft_cars: "Car rental",
+    results_to: "to", results_opts: "options", best_price: "Best price per day - click to book",
+    no_results: "View all available flights for this route:", search_on: "Search on",
+    prices_approx: "Prices are approximate. Click to see exact price and book.",
+    outbound_no: "View flights on", deal: "Deal", special: "Special",
+    best: "Best price", direct: "Direct",
+  },
+  ru: {
+    hero_title: "Вся поездка<br>в одном месте.",
+    hero_sub: "Билеты, отели, экскурсии и маршруты — ищи умнее, экономь больше.",
+    popular: "Популярные направления", how_title: "Как работает VoyageGo",
+    partners: "Партнёры", step1: "Выбирай",
+    step1d: "Ищи и сравнивай у проверенных партнёров.",
+    step2: "Бронируй", step2d: "Подтверждай билеты и отели через надёжные бренды.",
+    step3: "Путешествуй", step3d: "План по дням в боте и на сайте.",
+    nav_dest: "Направления", nav_how: "Как это работает", search: "Найти",
+    tab_flights: "Билеты", tab_trains: "Поезда", tab_buses: "Автобусы",
+    tab_hotels: "Отели", tab_tours: "Экскурсии", tab_cars: "Авто", tab_ferry: "Паром",
+    from: "Откуда", to: "Куда", date: "Дата", return_date: "Обратно", city: "Город",
+    checkin: "Заезд", checkout: "Выезд", pickup: "Город получения",
+    return_btn: "Туда-обратно", oneway: "В одну сторону", tg_btn: "Telegram Бот",
+    ft_flights: "Билеты", ft_hotels: "Отели", ft_tours: "Экскурсии", ft_cars: "Аренда авто",
+    results_to: "в", results_opts: "вариантов", best_price: "Лучшая цена за день",
+    no_results: "Посмотрите все рейсы на этом маршруте:", search_on: "Искать на",
+    prices_approx: "Цены приблизительные. Нажмите для покупки.",
+    outbound_no: "Смотреть рейсы на", deal: "Скидка", special: "Спецпредложение",
+    best: "Лучшая цена", direct: "Прямой",
+    see_all: "Все", from_price: "от",
+    footer_desc: "Билеты, отели, экскурсии и маршруты — вся поездка в одном месте.",
+    ft_about: "О нас", ft_partners: "Партнёры", ft_careers: "Карьера",
+    ft_contact: "Контакты", ft_terms: "Условия", ft_privacy: "Конфиденциальность",
+    ft_cookies: "Cookie",
+  },
+  uk: {
+    hero_title: "Вся поїздка,<br>в одному місці.",
+    hero_sub: "Квитки, готелі, екскурсії і маршрути — шукай розумно, економ більше.",
+    popular: "Популярні напрямки", how_title: "Як працює VoyageGo", partners: "Партнери",
+    step1: "Вибирай", step1d: "Порівнюй пропозиції надійних партнерів.",
+    step2: "Бронюй", step2d: "Підтверджуй квитки і готелі.",
+    step3: "Подорожуй", step3d: "План по днях у боті і на сайті.",
+    nav_dest: "Напрямки", nav_how: "Як це працює", search: "Шукати",
+    tab_flights: "Квитки", tab_trains: "Поїзди", tab_buses: "Автобуси",
+    tab_hotels: "Готелі", tab_tours: "Екскурсії", tab_cars: "Авто", tab_ferry: "Пором",
+    from: "Звідки", to: "Куди", date: "Дата", return_date: "Назад", city: "Місто",
+    checkin: "Заїзд", checkout: "Виїзд", pickup: "Місто",
+    return_btn: "Туди-назад", oneway: "В один бік", see_all: "Всі", from_price: "від",
+  },
+  fr: {
+    hero_title: "Tout votre voyage,<br>en un seul endroit.",
+    hero_sub: "Vols, hôtels, excursions et itinéraires — cherchez malin, économisez plus.",
+    popular: "Destinations populaires", how_title: "Comment fonctionne VoyageGo",
+    partners: "Partenaires", step1: "Choisissez",
+    step1d: "Comparez les offres de partenaires de confiance.",
+    step2: "Réservez", step2d: "Confirmez vos vols et hôtels via des marques fiables.",
+    step3: "Voyagez", step3d: "Itinéraire jour par jour dans le bot et sur le site.",
+    nav_dest: "Destinations", nav_how: "Comment ça marche", search: "Rechercher",
+    tab_flights: "Vols", tab_trains: "Trains", tab_buses: "Bus", tab_hotels: "Hôtels",
+    tab_tours: "Excursions", tab_cars: "Voitures", tab_ferry: "Ferry",
+    from: "De", to: "À", date: "Date", return_date: "Retour", city: "Ville",
+    checkin: "Arrivée", checkout: "Départ", pickup: "Ville",
+    return_btn: "Aller-retour", oneway: "Aller simple",
+    see_all: "Tout voir", from_price: "à partir de",
+  },
+  de: {
+    hero_title: "Ihre ganze Reise,<br>an einem Ort.",
+    hero_sub: "Flüge, Hotels, Touren und Routen — smart suchen, mehr sparen.",
+    popular: "Beliebte Reiseziele", how_title: "So funktioniert VoyageGo",
+    partners: "Partner", step1: "Wählen",
+    step1d: "Vergleichen Sie Angebote von vertrauenswürdigen Partnern.",
+    step2: "Buchen", step2d: "Bestätigen Sie Flüge und Hotels über zuverlässige Marken.",
+    step3: "Reisen", step3d: "Tagesplan im Bot und auf der Website.",
+    nav_dest: "Reiseziele", nav_how: "So funktioniert es", search: "Suchen",
+    tab_flights: "Flüge", tab_trains: "Züge", tab_buses: "Busse", tab_hotels: "Hotels",
+    tab_tours: "Touren", tab_cars: "Mietwagen", tab_ferry: "Fähre",
+    from: "Von", to: "Nach", date: "Datum", return_date: "Rückkehr", city: "Stadt",
+    checkin: "Check-in", checkout: "Check-out", pickup: "Stadt",
+    return_btn: "Hin und zurück", oneway: "Nur Hinflug",
+    see_all: "Alle", from_price: "ab",
+  },
+  es: {
+    hero_title: "Todo tu viaje,<br>en un solo lugar.",
+    hero_sub: "Vuelos, hoteles, tours y rutas — busca inteligente, ahorra más.",
+    popular: "Destinos populares", how_title: "Cómo funciona VoyageGo",
+    partners: "Socios", step1: "Elige", step1d: "Compara ofertas de socios de confianza.",
+    step2: "Reserva", step2d: "Confirma vuelos y hoteles a través de marcas fiables.",
+    step3: "Viaja", step3d: "Itinerario día a día en el bot y en la web.",
+    nav_dest: "Destinos", nav_how: "Cómo funciona", search: "Buscar",
+    tab_flights: "Vuelos", tab_trains: "Trenes", tab_buses: "Autobuses",
+    tab_hotels: "Hoteles", tab_tours: "Tours", tab_cars: "Coches", tab_ferry: "Ferry",
+    from: "Desde", to: "Hasta", date: "Fecha", return_date: "Vuelta", city: "Ciudad",
+    checkin: "Entrada", checkout: "Salida", pickup: "Ciudad",
+    return_btn: "Ida y vuelta", oneway: "Solo ida",
+    see_all: "Ver todo", from_price: "desde",
+  },
+  it: {
+    hero_title: "Tutto il tuo viaggio,<br>in un unico posto.",
+    hero_sub: "Voli, hotel, tour e percorsi — cerca in modo intelligente, risparmia di più.",
+    popular: "Destinazioni popolari", how_title: "Come funziona VoyageGo",
+    partners: "Partner", step1: "Scegli",
+    step1d: "Confronta le offerte dei partner affidabili.",
+    step2: "Prenota", step2d: "Conferma voli e hotel tramite marchi affidabili.",
+    step3: "Viaggia", step3d: "Itinerario giorno per giorno nel bot e sul sito.",
+    nav_dest: "Destinazioni", nav_how: "Come funziona", search: "Cerca",
+    tab_flights: "Voli", tab_trains: "Treni", tab_buses: "Autobus", tab_hotels: "Hotel",
+    tab_tours: "Tour", tab_cars: "Auto", tab_ferry: "Traghetto",
+    from: "Da", to: "A", date: "Data", return_date: "Ritorno", city: "Città",
+    checkin: "Check-in", checkout: "Check-out", pickup: "Città",
+    return_btn: "Andata e ritorno", oneway: "Solo andata",
+    see_all: "Tutti", from_price: "da",
+  },
+  pt: {
+    hero_title: "Toda a sua viagem,<br>num só lugar.",
+    hero_sub: "Voos, hotéis, tours e rotas — pesquise de forma inteligente, poupe mais.",
+    popular: "Destinos populares", how_title: "Como funciona o VoyageGo",
+    partners: "Parceiros", step1: "Escolha",
+    step1d: "Compare ofertas de parceiros de confiança.",
+    step2: "Reserve", step2d: "Confirme voos e hotéis através de marcas fiáveis.",
+    step3: "Viaje", step3d: "Itinerário dia a dia no bot e no site.",
+    nav_dest: "Destinos", nav_how: "Como funciona", search: "Pesquisar",
+    tab_flights: "Voos", tab_trains: "Comboios", tab_buses: "Autocarros",
+    tab_hotels: "Hotéis", tab_tours: "Passeios", tab_cars: "Carros", tab_ferry: "Ferry",
+    from: "De", to: "Para", date: "Data", return_date: "Regresso", city: "Cidade",
+    checkin: "Check-in", checkout: "Check-out", pickup: "Cidade",
+    return_btn: "Ida e volta", oneway: "Só ida",
+    see_all: "Ver tudo", from_price: "desde",
+  },
+  tr: {
+    hero_title: "Tüm seyahatiniz,<br>tek bir yerde.",
+    hero_sub: "Uçuşlar, oteller, turlar ve rotalar — akıllı ara, daha fazla tasarruf et.",
+    popular: "Popüler destinasyonlar", how_title: "VoyageGo nasıl çalışır",
+    partners: "Ortaklar", step1: "Seç",
+    step1d: "Güvenilir ortaklardan teklifleri karşılaştır.",
+    step2: "Rezerve et", step2d: "Uçuşları ve otelleri güvenilir markalar aracılığıyla onayla.",
+    step3: "Seyahat et", step3d: "Bot ve sitede günlük plan.",
+    nav_dest: "Destinasyonlar", nav_how: "Nasıl çalışır", search: "Ara",
+    tab_flights: "Uçuşlar", tab_trains: "Trenler", tab_buses: "Otobüsler",
+    tab_hotels: "Oteller", tab_tours: "Turlar", tab_cars: "Arabalar", tab_ferry: "Feribot",
+    from: "Nereden", to: "Nereye", date: "Tarih", return_date: "Dönüş", city: "Şehir",
+    checkin: "Giriş", checkout: "Çıkış", pickup: "Şehir",
+    return_btn: "Gidiş-dönüş", oneway: "Tek yön",
+    see_all: "Tümü", from_price: "itibaren",
+  },
+  pl: {
+    hero_title: "Cała podróż,<br>w jednym miejscu.",
+    hero_sub: "Loty, hotele, wycieczki i trasy — szukaj mądrze, oszczędzaj więcej.",
+    popular: "Popularne kierunki", how_title: "Jak działa VoyageGo",
+    partners: "Partnerzy", step1: "Wybierz",
+    step1d: "Porównaj oferty zaufanych partnerów.",
+    step2: "Zarezerwuj", step2d: "Potwierdź loty i hotele przez zaufane marki.",
+    step3: "Podróżuj", step3d: "Plan dzień po dniu w bocie i na stronie.",
+    nav_dest: "Kierunki", nav_how: "Jak to działa", search: "Szukaj",
+    tab_flights: "Loty", tab_trains: "Pociągi", tab_buses: "Autobusy",
+    tab_hotels: "Hotele", tab_tours: "Wycieczki", tab_cars: "Samochody", tab_ferry: "Prom",
+    from: "Skąd", to: "Dokąd", date: "Data", return_date: "Powrót", city: "Miasto",
+    checkin: "Zameldowanie", checkout: "Wymeldowanie", pickup: "Miasto",
+    return_btn: "W obie strony", oneway: "W jedną stronę",
+    see_all: "Wszystkie", from_price: "od",
+  },
+};
+const t = (lang: string, key: string) => TR[lang]?.[key] ?? TR.en[key] ?? key;
+
+// =================================================================
+//  CURRENCIES
+// =================================================================
+const CURRENCIES = [
+  { c: "EUR", s: "€" }, { c: "USD", s: "$" }, { c: "GBP", s: "£" },
+  { c: "RUB", s: "₽" }, { c: "UAH", s: "₴" }, { c: "TRY", s: "₺" },
+  { c: "PLN", s: "zł" }, { c: "CZK", s: "Kč" }, { c: "JPY", s: "¥" },
+  { c: "CNY", s: "¥" }, { c: "KRW", s: "₩" }, { c: "INR", s: "₹" },
+  { c: "BRL", s: "R$" }, { c: "CHF", s: "CHF" }, { c: "SEK", s: "kr" },
+  { c: "CAD", s: "C$" }, { c: "AUD", s: "A$" }, { c: "AED", s: "د.إ" },
+  { c: "KZT", s: "₸" }, { c: "IDR", s: "Rp" },
+];
+const RATES: Record<string, number> = {
+  EUR: 1, USD: 1.08, GBP: 0.86, RUB: 88, UAH: 51, TRY: 53, PLN: 4.25,
+  CZK: 25, JPY: 185, CNY: 7.8, KRW: 1450, INR: 90, BRL: 5.8, CHF: 0.92,
+  SEK: 11.2, CAD: 1.47, AUD: 1.65, AED: 3.97, KZT: 543, IDR: 17000,
+};
+
+// =================================================================
+//  TYPES
+// =================================================================
+type ACItem = { label: string; code: string; type?: "airport" | "city"; bg?: string };
+type FlightResult = {
+  type: "flight" | "train" | "bus" | "ferry";
+  price: number; airline?: string; transfers?: number;
+  origin?: string; destination?: string;
+  departure_date?: string; departure_time?: string;
+  duration?: string; link: string;
+};
+type TwoWayData = {
+  outbound: FlightResult[]; return: FlightResult[];
+  outbound_count: number; return_count: number;
+};
+// Deal type imported from ./components/DestCards
+
+// =================================================================
+//  AUTOCOMPLETE HOOK — single setupAC behavior
+// =================================================================
+function useAutocomplete(type: "airport" | "city" | "flight") {
+  const [items, setItems] = useState<ACItem[]>([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const onChange = useCallback((q: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    if (q.length < 2) { setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      try {
+        if (type === "airport" || type === "flight") {
+          const tpUrl = `https://autocomplete.travelpayouts.com/places2?term=${encodeURIComponent(q)}&locale=en&types[]=city&types[]=airport`;
+          const tpRes = await fetch(tpUrl).then(r => r.json()).catch(() => []);
+          const airports: ACItem[] = (tpRes as any[]).slice(0, 5)
+            .filter(a => a.name?.toLowerCase().indexOf(q.toLowerCase()) === 0)
+            .map(i => ({
+              label: i.name + (i.country_name ? `, ${i.country_name}` : ""),
+              code: i.code || "",
+              type: "airport" as const,
+            }));
+          if (type === "flight") {
+            // Also fetch cities (Photon) for non-airport rail destinations
+            const phRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=4&lang=en`)
+              .then(r => r.json()).catch(() => ({ features: [] }));
+            const airportNames = new Set(airports.map(a => a.label.split(",")[0].toLowerCase()));
+            const cities: ACItem[] = ((phRes as any).features || [])
+              .filter((f: any) => {
+                const n = (f.properties?.name || "").toLowerCase();
+                return n.indexOf(q.toLowerCase()) === 0 && !airportNames.has(n) && n.length > 1;
+              })
+              .slice(0, 3)
+              .map((f: any) => ({
+                label: f.properties.name + (f.properties.country ? `, ${f.properties.country}` : ""),
+                code: f.properties.name || "",
+                type: "city" as const,
+                bg: "#FFF8F0",
+              }));
+            setItems([...airports, ...cities]);
+          } else {
+            setItems(airports);
+          }
+        } else {
+          const phRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`)
+            .then(r => r.json());
+          const cities: ACItem[] = ((phRes as any).features || []).slice(0, 6).map((f: any) => ({
+            label: f.properties.name + (f.properties.country ? `, ${f.properties.country}` : ""),
+            code: f.properties.name || "",
+            type: "city" as const,
+          }));
+          setItems(cities);
+        }
+        setOpen(true);
+      } catch {
+        setOpen(false);
+      }
+    }, 300);
+  }, [type]);
+
+  return { items, open, onChange, setOpen };
+}
+
+// =================================================================
+//  AUTOCOMPLETE INPUT COMPONENT
+// =================================================================
+function ACInput(props: {
+  id: string; label: string; placeholder: string;
+  type: "airport" | "city" | "flight";
+  value: string; code: string;
+  onPick: (label: string, code: string) => void;
+  onChange: (v: string) => void;
+  onSwitchToTrains?: (from: string, to: string) => void;
+}) {
+  const { items, open, onChange, setOpen } = useAutocomplete(props.type);
+
+  return (
+    <div className="form-field">
+      <label>{props.label}</label>
+      <input
+        id={props.id}
+        type="text"
+        autoComplete="off"
+        placeholder={props.placeholder}
+        value={props.value}
+        onChange={e => { props.onChange(e.target.value); onChange(e.target.value); }}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        onFocus={() => { if (items.length > 0) setOpen(true); }}
+      />
+      <div className={"ac-dropdown" + (open ? " show" : "")}>
+        {items.map((it, i) => (
+          <div
+            key={i}
+            className="ac-opt"
+            style={it.bg ? { background: it.bg } : undefined}
+            onMouseDown={e => {
+              e.preventDefault();
+              if (it.type === "city" && props.type === "flight" && props.onSwitchToTrains) {
+                props.onSwitchToTrains(props.value, it.label);
+                setOpen(false);
+                return;
+              }
+              props.onPick(it.label, it.code);
+              setOpen(false);
+            }}
+          >
+            <span>{it.label}</span>
+            <span
+              className="ac-code"
+              style={it.type === "city" && props.type === "flight" ? { color: "#BA7517" } : undefined}
+            >
+              {it.type === "city" && props.type === "flight" ? "🚂 Trains →" : it.code}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+//  BRAND LOGO (V + oyage / GO)
+// =================================================================
+function BrandLogo() {
+  return (
+    <span className="brand-wrap">
+      <span className="brand">
+        <span className="v">V</span>
+        <span className="stack">
+          <span className="oyage">oyage</span>
+          <span className="go">GO</span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
+// =================================================================
+//  MAIN PAGE
+// =================================================================
+export default function Page() {
+  const [lang, setLang] = useState("en");
+  const [cur, setCur] = useState("EUR");
+  const [curSym, setCurSym] = useState("€");
+  const [tab, setTab] = useState<"flights" | "trains" | "buses" | "ferry" | "hotels" | "tours" | "cars">("flights");
+  const [tripType, setTripType] = useState<"return" | "oneway">("return");
+
+  // Form state per tab
+  const [flFrom, setFlFrom] = useState(""); const [flFromCode, setFlFromCode] = useState("");
+  const [flTo, setFlTo] = useState(""); const [flToCode, setFlToCode] = useState("");
+  const [flDate, setFlDate] = useState(""); const [flReturn, setFlReturn] = useState("");
+
+  const [htCity, setHtCity] = useState(""); const [, setHtCityCode] = useState("");
+  const [htIn, setHtIn] = useState(""); const [htOut, setHtOut] = useState("");
+
+  const [toCity, setToCity] = useState(""); const [, setToCityCode] = useState("");
+  const [caCity, setCaCity] = useState(""); const [, setCaCityCode] = useState("");
+
+  // UI state
+  const [langModalOpen, setLangModalOpen] = useState(false);
+  const [curModalOpen, setCurModalOpen] = useState(false);
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const [resultsTitle, setResultsTitle] = useState("Results");
+  const [resultsHTML, setResultsHTML] = useState("");
+  const [stickyVisible, setStickyVisible] = useState(false);
+  const [deals, setDeals] = useState<Deal[]>([]);
+
+  const heroRef = useRef<HTMLElement>(null);
+
+  // ---- scroll: sticky bar ----
+  useEffect(() => {
+    const onScroll = () => {
+      if (!heroRef.current) return;
+      const hb = heroRef.current.offsetHeight - 100;
+      setStickyVisible(window.scrollY > hb);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // ---- body scroll lock when modal open ----
+  useEffect(() => {
+    document.body.style.overflow = resultsOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [resultsOpen]);
+
+  // ---- load deals when lang/cur changes ----
+  const loadDeals = useCallback(async () => {
+    try {
+      const useAviasales = lang === "ru" || lang === "uk" || cur === "RUB";
+      const r = await fetch(`${API_BASE}/api/deals?origin=LIS&lang=${useAviasales ? "ru" : lang}`);
+      const data = await r.json();
+      setDeals(data.deals || []);
+    } catch { /* keep static cards */ }
+  }, [lang, cur]);
+
+  useEffect(() => { loadDeals(); }, [loadDeals]);
+
+  // ---- Omio widget loader (one time) ----
+  useEffect(() => {
+    if ((window as any).__omioLoaded) return;
+    (window as any).__omioLoaded = true;
+    const v = Date.now();
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `https://www.omio.com/gcs-proxy/b2b-nemo-prod/bundle/en/bundle.css?v=${v}`;
+    document.head.appendChild(link);
+    const s = document.createElement("script");
+    s.src = `https://www.omio.com/gcs-proxy/b2b-nemo-prod/bundle/en/bundle.js?v=${v}`;
+    document.body.appendChild(s);
+  }, []);
+
+  // =================================================================
+  //  RESULT CARD BUILDER (mirrors original buildCard)
+  // =================================================================
+  const buildCard = (r: FlightResult): string => {
+    let tag = "";
+    if (r.type === "train") tag = '<span class="result-tag direct">Train</span>';
+    else if (r.type === "bus") tag = '<span class="result-tag" style="background:#E8EAF6;color:#3949AB">Bus</span>';
+    else if (r.type === "ferry") tag = '<span class="result-tag" style="background:#E0F7FA;color:#00838F">Ferry</span>';
+    else if (r.transfers === 0) tag = '<span class="result-tag direct">Direct</span>';
+    else tag = `<span class="result-tag stop">${r.transfers} stop</span>`;
+
+    const safe = r.link.replace(/'/g, "%27").replace(/"/g, "&quot;");
+    const priceHTML = r.type === "flight"
+      ? `<div class="result-price">${curSym}${Math.round(r.price * RATES[cur])}</div>`
+      : `<div class="result-price" style="font-size:15px">${curSym}${Math.round(r.price * RATES[cur])}–${curSym}${Math.round(r.price * 1.5 * RATES[cur])}</div>`;
+    const route = r.type === "flight"
+      ? `${r.origin || ""} → ${r.destination || ""}`
+      : r.type.charAt(0).toUpperCase() + r.type.slice(1);
+
+    let details = tag;
+    if (r.airline) details += `<span>${airName(r.airline)}</span>`;
+    if (r.departure_time) details += `<span>${r.departure_time}</span>`;
+    if (r.duration) details += `<span>${r.duration}</span>`;
+
+    return `<div class="result-card" data-link="${safe}">${priceHTML}<div class="result-info"><div class="result-route">${route}</div><div class="result-details">${details}</div></div><div class="result-arrow">›</div></div>`;
+  };
+
+  // delegate clicks on result cards
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest(".result-card") as HTMLElement | null;
+      if (target?.dataset.link) window.open(target.dataset.link, "_blank");
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
+
+  // =================================================================
+  //  RENDER TWO-WAY RESULTS
+  // =================================================================
+  const renderTwoWay = (data: TwoWayData, from: string, to: string) => {
+    const noResults = !data.outbound.length && !data.return.length;
+    const fcode = flFromCode || flFrom.slice(0, 3).toUpperCase();
+    const tcode = flToCode || flTo.slice(0, 3).toUpperCase();
+    const useAviasales = lang === "ru" || lang === "uk";
+
+    let fallbackLink = `https://www.trip.com/flights/?dcity=${fcode}&acity=${tcode}&ddate=${flDate}&Allianceid=${P.trip.a}&SID=${P.trip.s}`;
+    if (useAviasales) {
+      const dd = flDate ? flDate.slice(8, 10) + flDate.slice(5, 7) : "";
+      fallbackLink = `https://www.aviasales.ru/search/${fcode}${dd}${tcode}1?marker=${P.tp.marker}`;
+    }
+    const partner = useAviasales ? "Aviasales" : "Trip.com";
+
+    if (noResults) {
+      setResultsHTML(
+        `<div class="result-empty" style="padding:30px;text-align:center"><p style="margin-bottom:16px">${t(lang, "no_results")}</p><a href="${fallbackLink}" target="_blank" style="display:inline-block;background:#1A2332;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:600">${t(lang, "search_on")} ${partner} →</a></div>`
+      );
+      return;
+    }
+
+    const resultsTo = TR[lang]?.results_to || "to";
+    let h = "<div>";
+    h += `<div style="padding:14px 22px;background:#F8F7F3;border-bottom:1px solid rgba(0,0,0,.06)"><div style="font-weight:600;font-size:14px">${from} ${resultsTo} ${to} — ${data.outbound_count} options</div><div style="font-size:12px;color:#888;margin-top:2px">${t(lang, "best_price")}</div></div>`;
+    h += '<div class="results-list" style="max-height:40vh">';
+    data.outbound.forEach(r => { h += buildCard(r); });
+    if (!data.outbound.length) {
+      h += `<div style="padding:20px;text-align:center"><a href="${fallbackLink}" target="_blank" style="display:inline-block;background:#1A2332;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:500">${t(lang, "outbound_no")} ${partner} →</a></div>`;
+    }
+    h += "</div>";
+    if (data.return_count > 0) {
+      h += `<div style="padding:14px 22px;background:#F8F7F3;border-bottom:1px solid rgba(0,0,0,.06);border-top:2px solid #1A2332"><div style="font-weight:600;font-size:14px">${to} ${resultsTo} ${from} — ${data.return_count} options</div></div>`;
+      h += '<div class="results-list" style="max-height:40vh">';
+      (data.return || []).forEach(r => { h += buildCard(r); });
+      h += "</div>";
+    }
+    h += `<div style="padding:12px 22px;background:#F8F7F3;border-top:1px solid rgba(0,0,0,.06);font-size:11px;color:#888">${t(lang, "prices_approx")}</div></div>`;
+    setResultsHTML(h);
+  };
+
+  // =================================================================
+  //  SEARCH HANDLERS
+  // =================================================================
+  const searchFlights = async () => {
+    if (!flFrom || !flTo) return;
+    const fc = flFromCode || flFrom.slice(0, 3).toUpperCase();
+    const tc = flToCode || flTo.slice(0, 3).toUpperCase();
+    const rd = tripType === "oneway" ? "" : flReturn;
+    setResultsTitle(`${flFrom} — ${flTo}`);
+    setResultsHTML(`<div class="results-loading" style="padding:40px;text-align:center;color:#888">${lang === "ru" ? "Поиск..." : "Searching..."}</div>`);
+    setResultsOpen(true);
+    try {
+      let url = `${API_BASE}/api/search-return?origin=${fc}&dest=${tc}&date=${flDate}&lang=${lang}`;
+      if (rd) url += `&return_date=${rd}`;
+      const res = await fetch(url);
+      const data: TwoWayData = await res.json();
+      renderTwoWay(data, flFrom, flTo);
+    } catch {
+      setResultsHTML('<div class="result-empty">Error. Try again.</div>');
+    }
+  };
+
+  const searchHotels = () => {
+    const c = htCity.split(",")[0].trim();
+    if (!c) return;
+    window.open(`https://search.hotellook.com/hotels?destination=${encodeURIComponent(c)}&checkIn=${htIn}&checkOut=${htOut}&currency=${cur.toLowerCase()}&marker=${P.tp.marker}`, "_blank");
+  };
+
+  const searchTours = () => {
+    const c = toCity.split(",")[0].trim();
+    if (!c) return;
+    window.open(`https://www.getyourguide.com/s/?q=${encodeURIComponent(c)}&partner_id=${P.gyg.id}&utm_medium=online_publisher`, "_blank");
+  };
+
+  const searchCars = () => {
+    const c = caCity.split(",")[0].trim().toLowerCase().replace(/ /g, "-");
+    if (!c) return;
+    window.open(`https://www.discovercars.com/${c}?a_aid=${P.dc.id}`, "_blank");
+  };
+
+  // helper for autocomplete city click in flights tab
+  const switchToTrainsFromFlights = (from: string, to: string) => {
+    setTab("trains");
+    // Trains use Omio widget directly — we just switch the tab.
+    // The Omio widget reads its own inputs; we still keep autocomplete as a hint.
+  };
+
+  // =================================================================
+  //  RENDER
+  // =================================================================
+  return (
+    <>
+      <IconSprites />
+
+      {/* Sticky bar — shown after scrolling past hero */}
+      <div className={"sticky-bar" + (stickyVisible ? " visible" : "")}>
+        <div className="logo">
+          <BrandLogo />
+        </div>
+        <div className="summary">
+          <svg className="icon" style={{ fontSize: 14 }}><use href="#i-search" /></svg>
+          <span>Lisbon → Paris</span><span className="sep">·</span>
+          <span>Jun 14 — Jun 21</span><span className="sep">·</span>
+          <span>1 adult</span>
+        </div>
+        <button onClick={() => document.getElementById("fl-from")?.focus()}>
+          {t(lang, "search")}
+        </button>
+      </div>
+
+      {/* HERO */}
+      <section className="hero" ref={heroRef as any}>
+        <HeroSvg />
+        <div className="hero-overlay" />
+
+        <nav className="nav">
+          <div className="logo"><BrandLogo /></div>
+          <span className="hamburger" aria-label="Menu">
+            <svg className="icon"><use href="#i-menu-2" /></svg>
+          </span>
+          <div className="nav-links">
+            <a href="#destinations">{t(lang, "nav_dest")}</a>
+            <a href="#how">{t(lang, "nav_how")}</a>
+            <span className="lang-pill" onClick={() => setCurModalOpen(v => !v)} style={{ marginRight: 6 }}>
+              <span>{curSym} {cur}</span>
+            </span>
+            <span className="lang-pill" onClick={() => setLangModalOpen(v => !v)}>
+              <svg className="icon"><use href="#i-world" /></svg>
+              <span>{lang.toUpperCase()}</span>
+            </span>
+            <a href="https://t.me/VoyageGoBot" target="_blank" rel="noreferrer" className="signin-btn">
+              {t(lang, "tg_btn")}
+            </a>
+          </div>
+        </nav>
+
+        {/* Currency modal */}
+        {curModalOpen && (
+          <div
+            className="lang-modal-bg show"
+            onClick={e => { if (e.target === e.currentTarget) setCurModalOpen(false); }}
+          >
+            <div className="lang-modal-box">
+              <h3>Currency</h3>
+              <div className="lang-grid-items">
+                {CURRENCIES.map(c => (
+                  <div
+                    key={c.c}
+                    className={"lang-opt" + (c.c === cur ? " active" : "")}
+                    onClick={() => { setCur(c.c); setCurSym(c.s); setCurModalOpen(false); }}
+                  >
+                    {c.s} {c.c}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Language modal */}
+        {langModalOpen && (
+          <div
+            className="lang-modal-bg show"
+            onClick={e => { if (e.target === e.currentTarget) setLangModalOpen(false); }}
+          >
+            <div className="lang-modal-box">
+              <h3>Language</h3>
+              <div className="lang-grid-items">
+                {LANGS.map(l => (
+                  <div
+                    key={l.c}
+                    className={"lang-opt" + (l.c === lang ? " active" : "")}
+                    onClick={() => { setLang(l.c); setLangModalOpen(false); }}
+                  >
+                    {l.f} {l.n}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="hero-content">
+          <h1 dangerouslySetInnerHTML={{ __html: t(lang, "hero_title") }} />
+          <p>{t(lang, "hero_sub")}</p>
+        </div>
+
+        {/* SEARCH CARD */}
+        <div className="search-card">
+          <div className="tabs">
+            {([
+              ["flights", "i-plane", "tab_flights"],
+              ["trains", "i-route", "tab_trains"],
+              ["buses", "i-car", "tab_buses"],
+              ["ferry", "i-route", "tab_ferry"],
+              ["hotels", "i-bed", "tab_hotels"],
+              ["tours", "i-map-pin", "tab_tours"],
+              ["cars", "i-car", "tab_cars"],
+            ] as const).map(([k, ic, tk]) => (
+              <div
+                key={k}
+                className={"tab" + (tab === k ? " active" : "")}
+                onClick={() => setTab(k as typeof tab)}
+              >
+                <svg className="icon"><use href={`#${ic}`} /></svg>
+                <span>{t(lang, tk)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* FLIGHTS */}
+          <div className={"tab-form" + (tab === "flights" ? " active" : "")}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button
+                className={"trip-toggle" + (tripType === "return" ? " active" : "")}
+                onClick={() => setTripType("return")}
+              >{t(lang, "return_btn")}</button>
+              <button
+                className={"trip-toggle" + (tripType === "oneway" ? " active" : "")}
+                onClick={() => setTripType("oneway")}
+              >{t(lang, "oneway")}</button>
+            </div>
+            <div className="form-row">
+              <ACInput
+                id="fl-from" label={t(lang, "from")} placeholder="London, Paris..."
+                type="flight"
+                value={flFrom} code={flFromCode}
+                onChange={v => { setFlFrom(v); setFlFromCode(""); }}
+                onPick={(label, code) => { setFlFrom(label); setFlFromCode(code); }}
+                onSwitchToTrains={switchToTrainsFromFlights}
+              />
+              <ACInput
+                id="fl-to" label={t(lang, "to")} placeholder="New York, Tokyo..."
+                type="flight"
+                value={flTo} code={flToCode}
+                onChange={v => { setFlTo(v); setFlToCode(""); }}
+                onPick={(label, code) => { setFlTo(label); setFlToCode(code); }}
+                onSwitchToTrains={switchToTrainsFromFlights}
+              />
+            </div>
+            <div className="form-row">
+              <div className="form-field">
+                <label>{t(lang, "date")}</label>
+                <input type="date" value={flDate} onChange={e => setFlDate(e.target.value)} />
+              </div>
+              <div className="form-field" style={{ display: tripType === "oneway" ? "none" : "block" }}>
+                <label>{t(lang, "return_date")}</label>
+                <input type="date" value={flReturn} onChange={e => setFlReturn(e.target.value)} />
+              </div>
+            </div>
+            <button className="search-btn" onClick={searchFlights}>{t(lang, "search")}</button>
+          </div>
+
+          {/* TRAINS — Omio widget */}
+          <div className={"tab-form" + (tab === "trains" ? " active" : "")} style={{ padding: 0, minHeight: 80 }}>
+            <div
+              data-omio-widget="true"
+              data-partner-id="voyagego"
+              data-redirect="https://omio.sjv.io/c/7271483/861892/7385?u="
+              data-layout="fluid"
+              style={{ width: "100%" }}
+              data-theme="blue"
+            />
+          </div>
+
+          {/* BUSES — Omio widget */}
+          <div className={"tab-form" + (tab === "buses" ? " active" : "")} style={{ padding: 0, minHeight: 80 }}>
+            <div
+              data-omio-widget="true"
+              data-partner-id="voyagego"
+              data-default-travel-mode="bus"
+              data-redirect="https://omio.sjv.io/c/7271483/861892/7385?u="
+              data-layout="fluid"
+              style={{ width: "100%" }}
+              data-theme="blue"
+            />
+          </div>
+
+          {/* FERRY — Omio widget */}
+          <div className={"tab-form" + (tab === "ferry" ? " active" : "")} style={{ padding: 0, minHeight: 80 }}>
+            <div
+              data-omio-widget="true"
+              data-partner-id="voyagego"
+              data-default-travel-mode="ferry"
+              data-redirect="https://omio.sjv.io/c/7271483/861892/7385?u="
+              data-layout="fluid"
+              style={{ width: "100%" }}
+              data-theme="blue"
+            />
+          </div>
+
+          {/* HOTELS */}
+          <div className={"tab-form" + (tab === "hotels" ? " active" : "")}>
+            <div className="form-row">
+              <ACInput
+                id="ht-city" label={t(lang, "city")} placeholder="Paris, Rome, Tokyo..."
+                type="city"
+                value={htCity} code=""
+                onChange={v => { setHtCity(v); setHtCityCode(""); }}
+                onPick={(label, code) => { setHtCity(label); setHtCityCode(code); }}
+              />
+            </div>
+            <div className="form-row">
+              <div className="form-field">
+                <label>{t(lang, "checkin")}</label>
+                <input type="date" value={htIn} onChange={e => setHtIn(e.target.value)} />
+              </div>
+              <div className="form-field">
+                <label>{t(lang, "checkout")}</label>
+                <input type="date" value={htOut} onChange={e => setHtOut(e.target.value)} />
+              </div>
+            </div>
+            <button className="search-btn" onClick={searchHotels}>{t(lang, "search")}</button>
+          </div>
+
+          {/* TOURS */}
+          <div className={"tab-form" + (tab === "tours" ? " active" : "")}>
+            <div className="form-row">
+              <ACInput
+                id="to-city" label={t(lang, "city")} placeholder="Paris, Barcelona, Kyoto..."
+                type="city"
+                value={toCity} code=""
+                onChange={v => { setToCity(v); setToCityCode(""); }}
+                onPick={(label, code) => { setToCity(label); setToCityCode(code); }}
+              />
+            </div>
+            <button className="search-btn" onClick={searchTours}>{t(lang, "search")}</button>
+          </div>
+
+          {/* CARS */}
+          <div className={"tab-form" + (tab === "cars" ? " active" : "")}>
+            <div className="form-row">
+              <ACInput
+                id="ca-city" label={t(lang, "pickup")} placeholder="Lisbon, Barcelona..."
+                type="city"
+                value={caCity} code=""
+                onChange={v => { setCaCity(v); setCaCityCode(""); }}
+                onPick={(label, code) => { setCaCity(label); setCaCityCode(code); }}
+              />
+            </div>
+            <button className="search-btn" onClick={searchCars}>{t(lang, "search")}</button>
+          </div>
+        </div>
+      </section>
+
+      {/* TRUST BAR */}
+      <div className="trust-bar">
+        <div className="trust-label">{t(lang, "partners")}</div>
+        <div className="trust-logos">
+          <span>Aviasales</span><span>Trip.com</span><span>Omio</span>
+          <span>GetYourGuide</span><span>DiscoverCars</span><span>Hotellook</span>
+        </div>
+      </div>
+
+      {/* DESTINATIONS */}
+      <section className="section" id="destinations">
+        <div className="section-head">
+          <h2>{t(lang, "popular")}</h2>
+          <a href="#" className="see-all">
+            {t(lang, "see_all")} <svg className="icon"><use href="#i-arrow-right" /></svg>
+          </a>
+        </div>
+
+        <DestCards
+          deals={deals}
+          curSym={curSym}
+          rate={RATES[cur]}
+          labels={{
+            deal: t(lang, "deal"),
+            special: t(lang, "special"),
+            best: t(lang, "best"),
+            direct: t(lang, "direct"),
+            from: t(lang, "from_price"),
+          }}
+        />
+      </section>
+
+      {/* HOW IT WORKS */}
+      <section className="section" id="how">
+        <div className="section-head"><h2>{t(lang, "how_title")}</h2></div>
+        <div className="how-grid">
+          <div className="step-card">
+            <div className="step-num">01</div>
+            <div className="step-icon"><svg className="icon"><use href="#i-search" /></svg></div>
+            <h3>{t(lang, "step1")}</h3>
+            <p>{t(lang, "step1d")}</p>
+          </div>
+          <div className="step-card">
+            <div className="step-num">02</div>
+            <div className="step-icon"><svg className="icon"><use href="#i-credit-card" /></svg></div>
+            <h3>{t(lang, "step2")}</h3>
+            <p>{t(lang, "step2d")}</p>
+          </div>
+          <div className="step-card">
+            <div className="step-num">03</div>
+            <div className="step-icon"><svg className="icon"><use href="#i-plane-departure" /></svg></div>
+            <h3>{t(lang, "step3")}</h3>
+            <p>{t(lang, "step3d")}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer>
+        <div className="footer-grid">
+          <div className="footer-brand">
+            <div className="logo"><BrandLogo /></div>
+            <p>{t(lang, "footer_desc")}</p>
+          </div>
+          <div className="footer-col">
+            <h4>Product</h4>
+            <a href="#">{t(lang, "ft_flights")}</a>
+            <a href="#">{t(lang, "ft_hotels")}</a>
+            <a href="#">{t(lang, "ft_tours")}</a>
+            <a href="#">{t(lang, "ft_cars")}</a>
+          </div>
+          <div className="footer-col">
+            <h4>Company</h4>
+            <a href="#">{t(lang, "ft_about")}</a>
+            <a href="#">{t(lang, "ft_partners")}</a>
+            <a href="#">{t(lang, "ft_careers")}</a>
+            <a href="#">{t(lang, "ft_contact")}</a>
+          </div>
+          <div className="footer-col">
+            <h4>Legal</h4>
+            <a href="#">{t(lang, "ft_terms")}</a>
+            <a href="#">{t(lang, "ft_privacy")}</a>
+            <a href="#">{t(lang, "ft_cookies")}</a>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>© 2026 VoyageGo. All rights reserved.</span>
+          <span>voyagego.world</span>
+        </div>
+      </footer>
+
+      {/* RESULTS OVERLAY */}
+      {resultsOpen && (
+        <div className="results-overlay show" onClick={e => { if (e.target === e.currentTarget) setResultsOpen(false); }}>
+          <div className="results-box">
+            <div className="results-header">
+              <h3>{resultsTitle}</h3>
+              <button className="results-close" onClick={() => setResultsOpen(false)}>×</button>
+            </div>
+            <div dangerouslySetInnerHTML={{ __html: resultsHTML }} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

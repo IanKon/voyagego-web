@@ -1,0 +1,139 @@
+import { NextRequest, NextResponse } from "next/server";
+
+// =============================================================================
+//  /api/cards?origin=LIS&lang=en
+//
+//  Proxies the existing FastAPI /api/deals endpoint and post-processes each
+//  result into one of two tiers:
+//
+//   - tier1 ("hot deal"): we have a price + a reasonably-future departure date
+//     within the next 90 days. We display this with date + airline + price.
+//
+//   - tier2 ("inspiration"): old / fuzzy data. We strip the price entirely
+//     and just show the city as inspiration. Click leads to the search form.
+//
+//  This way users never see "fake old prices" — only real deals get a price.
+// =============================================================================
+
+type RawDeal = {
+  city?: string;
+  destination?: string;
+  destination_code?: string;
+  origin?: string;
+  origin_code?: string;
+  price?: number | string;
+  airline?: string;
+  link?: string;
+  departure_date?: string;
+  return_date?: string;
+  expires_at?: string;
+  found_at?: string;
+};
+
+type Card = {
+  city: string;
+  country?: string;
+  origin: string;
+  destination_code?: string;
+  link: string;
+  // tier1 only:
+  tier: "tier1" | "tier2";
+  price?: number;
+  airline?: string;
+  departure_date?: string;
+  expires_at?: string;
+};
+
+// How fresh a deal must be to count as "real" (in days).
+const FRESHNESS_DAYS = 14;
+// How far ahead the departure must be (in days from today).
+const MAX_LOOKAHEAD_DAYS = 120;
+
+const FASTAPI_BASE = process.env.FASTAPI_BASE_URL || "https://voyagego.world";
+
+export async function GET(req: NextRequest) {
+  const origin = (req.nextUrl.searchParams.get("origin") || "LIS").toUpperCase().slice(0, 3);
+  const lang = req.nextUrl.searchParams.get("lang") || "en";
+
+  // -------- Fetch from FastAPI --------
+  let raw: RawDeal[] = [];
+  try {
+    const r = await fetch(
+      `${FASTAPI_BASE}/api/deals?origin=${origin}&lang=${lang}`,
+      { next: { revalidate: 1800 } } // CDN cache for 30 minutes
+    );
+    if (r.ok) {
+      const data = await r.json();
+      raw = data.deals || [];
+    }
+  } catch {
+    // Fall through with empty raw — frontend will show only tier2 fallbacks.
+  }
+
+  // -------- Classify each deal --------
+  const now = new Date();
+  const horizonMax = new Date(now.getTime() + MAX_LOOKAHEAD_DAYS * 86400000);
+
+  const cards: Card[] = raw.map((d) => {
+    const city = (d.destination || d.city || "").trim();
+    const destCode = (d.destination_code || "").toUpperCase();
+    const link = d.link || "";
+    const priceNum = typeof d.price === "string" ? parseFloat(d.price) : (d.price ?? 0);
+
+    // tier1 requires: positive price + a departure date that's in the future
+    // and within MAX_LOOKAHEAD_DAYS, and the deal was found within FRESHNESS_DAYS.
+    let isTier1 = false;
+    let parsedDate: Date | null = null;
+
+    if (d.departure_date) {
+      const t = Date.parse(d.departure_date);
+      if (!isNaN(t)) parsedDate = new Date(t);
+    }
+
+    const inFuture = parsedDate && parsedDate > now && parsedDate < horizonMax;
+
+    let foundFresh = true;
+    if (d.found_at) {
+      const ft = Date.parse(d.found_at);
+      if (!isNaN(ft)) {
+        foundFresh = (now.getTime() - ft) < FRESHNESS_DAYS * 86400000;
+      }
+    }
+
+    if (priceNum > 0 && inFuture && foundFresh) {
+      isTier1 = true;
+    }
+
+    return {
+      city: city || "Unknown",
+      origin,
+      destination_code: destCode || undefined,
+      link,
+      tier: (isTier1 ? "tier1" : "tier2") as "tier1" | "tier2",
+      ...(isTier1 ? {
+        price: Math.round(priceNum),
+        airline: d.airline,
+        departure_date: parsedDate?.toISOString().slice(0, 10),
+        expires_at: d.expires_at,
+      } : {}),
+    };
+  }).filter(c => c.city && c.city !== "Unknown");
+
+  // -------- Sort: tier1 first (cheapest), then tier2 --------
+  cards.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier === "tier1" ? -1 : 1;
+    if (a.tier === "tier1" && b.tier === "tier1") return (a.price || 0) - (b.price || 0);
+    return 0;
+  });
+
+  return NextResponse.json({
+    origin,
+    cards: cards.slice(0, 12),
+    counts: {
+      tier1: cards.filter(c => c.tier === "tier1").length,
+      tier2: cards.filter(c => c.tier === "tier2").length,
+    },
+  }, {
+    headers: { "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600" },
+  });
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import DestCards, { Card } from "./components/DestCards";
+import DestCards, { Deal } from "./components/DestCards";
 
 // =============================================================================
 //  PARTNER CONFIG
@@ -44,10 +44,7 @@ const TR: Record<string, Record<string, string>> = {
     from: "From", to: "To", date: "Departure", return_date: "Return",
     city: "City", checkin: "Check-in", checkout: "Check-out", pickup: "Pick-up location",
     return_btn: "Round-trip", oneway: "One way",
-    popular: "Popular destinations", popular_sub: "Get inspired for your next trip — explore cities loved by travelers.",
-    popular_week: "Fly to a popular city soon", popular_week_sub: "Cheapest fares to bucket-list cities, departing in the next 30 days.",
-    hot_deals: "Limited-time deals", hot_deals_sub: "Real prices from trusted partners — book before they're gone.",
-    expires: "expires", no_deals: "No live deals right now — try the search above.",
+    popular: "Popular destinations", popular_sub: "Hand-picked deals from Lisbon — updated daily.",
     how_title: "Simple, fast, transparent", how_sub: "Three steps from idea to your destination.",
     step1: "Search smart", step1d: "Compare prices across the world's most trusted travel partners in one search.",
     step2: "Book direct", step2d: "Confirm flights, stays and tours through partners — no middlemen, real prices.",
@@ -73,10 +70,7 @@ const TR: Record<string, Record<string, string>> = {
     from: "Откуда", to: "Куда", date: "Дата", return_date: "Обратно",
     city: "Город", checkin: "Заезд", checkout: "Выезд", pickup: "Город получения",
     return_btn: "Туда-обратно", oneway: "В одну сторону",
-    popular: "Популярные направления", popular_sub: "Вдохновись для следующей поездки — города, любимые путешественниками.",
-    popular_week: "Полететь в популярный город скоро", popular_week_sub: "Самые дешёвые билеты в топовые города с вылетом в ближайший месяц.",
-    hot_deals: "Скидки сейчас", hot_deals_sub: "Реальные цены от проверенных партнёров — успей пока не разобрали.",
-    expires: "до", no_deals: "Прямо сейчас активных скидок нет — попробуй поиск выше.",
+    popular: "Популярные направления", popular_sub: "Подборка лучших предложений из Лиссабона.",
     how_title: "Просто, быстро, прозрачно", how_sub: "Три шага от идеи до направления.",
     step1: "Умный поиск", step1d: "Сравнивай цены у проверенных туристических партнёров в одном поиске.",
     step2: "Прямое бронирование", step2d: "Бронируй билеты, отели и экскурсии напрямую — без посредников, реальные цены.",
@@ -277,11 +271,7 @@ export default function Page() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultsTitle, setResultsTitle] = useState("Results");
   const [resultsHTML, setResultsHTML] = useState("");
-  const [cards, setCards] = useState<Card[]>([]);
-  const [popularCards, setPopularCards] = useState<Card[]>([]);
-  const [geo, setGeo] = useState<{ city: string; airport: string; country: string }>({
-    city: "Lisbon", airport: "LIS", country: "PT",
-  });
+  const [deals, setDeals] = useState<Deal[]>([]);
 
   // body scroll lock when results modal open
   useEffect(() => {
@@ -289,41 +279,16 @@ export default function Page() {
     return () => { document.body.style.overflow = ""; };
   }, [resultsOpen]);
 
-  // ---------- detect user location once on mount ----------
-  useEffect(() => {
-    fetch("/api/geo")
-      .then(r => r.json())
-      .then(data => {
-        if (data?.airport) {
-          setGeo({
-            city: data.city || "Lisbon",
-            airport: data.airport || "LIS",
-            country: data.country || "PT",
-          });
-        }
-      })
-      .catch(() => { /* keep default Lisbon */ });
-  }, []);
-
-  // ---------- load both card lists when origin/lang/cur changes ----------
-  const loadCards = useCallback(async () => {
-    const useAviasales = lang === "ru" || lang === "uk" || cur === "RUB";
-    const langForApi = useAviasales ? "ru" : lang;
-
-    // Fire both endpoints in parallel — they're independent, no point waiting
-    const [cheapAnywhere, popularNextWeek] = await Promise.allSettled([
-      fetch(`/api/cards?origin=${geo.airport}&lang=${langForApi}&currency=${cur}`).then(r => r.json()),
-      fetch(`/api/cards-popular?origin=${geo.airport}&lang=${langForApi}&currency=${cur}&days=60`).then(r => r.json()),
-    ]);
-
-    if (cheapAnywhere.status === "fulfilled") {
-      setCards(cheapAnywhere.value.cards || []);
-    }
-    if (popularNextWeek.status === "fulfilled") {
-      setPopularCards(popularNextWeek.value.cards || []);
-    }
-  }, [lang, cur, geo.airport]);
-  useEffect(() => { loadCards(); }, [loadCards]);
+  // load deals
+  const loadDeals = useCallback(async () => {
+    try {
+      const useAviasales = lang === "ru" || lang === "uk" || cur === "RUB";
+      const r = await fetch(`${API_BASE}/api/deals?origin=LIS&lang=${useAviasales ? "ru" : lang}`);
+      const data = await r.json();
+      setDeals(data.deals || []);
+    } catch { /* fall back to defaults inside DestCards */ }
+  }, [lang, cur]);
+  useEffect(() => { loadDeals(); }, [loadDeals]);
 
   // delegate clicks on result cards
   useEffect(() => {
@@ -618,25 +583,25 @@ export default function Page() {
         </div>
       </section>
 
-      {/* DESTINATIONS — DestCards renders Hot deals + Popular sections itself */}
-      <DestCards
-        cards={cards}
-        popularCards={popularCards}
-        popularLabel={t(lang, "popular_week")}
-        popularSubLabel={t(lang, "popular_week_sub")}
-        curSym={curSym}
-        rate={RATES[cur]}
-        lang={lang}
-        labels={{
-          hot_deals: t(lang, "hot_deals"),
-          hot_deals_sub: t(lang, "hot_deals_sub"),
-          popular: t(lang, "popular"),
-          popular_sub: t(lang, "popular_sub"),
-          from: t(lang, "from_price"),
-          expires: t(lang, "expires"),
-          no_deals: t(lang, "no_deals"),
-        }}
-      />
+      {/* DESTINATIONS */}
+      <section className="section" id="destinations">
+        <div className="section-head">
+          <h2>{t(lang, "popular")}</h2>
+          <p>{t(lang, "popular_sub")}</p>
+        </div>
+        <DestCards
+          deals={deals}
+          curSym={curSym}
+          rate={RATES[cur]}
+          labels={{
+            deal: t(lang, "deal"),
+            special: t(lang, "special"),
+            best: t(lang, "best"),
+            direct: t(lang, "direct"),
+            from: t(lang, "from_price"),
+          }}
+        />
+      </section>
 
       {/* HOW IT WORKS */}
       <section className="section" id="how">

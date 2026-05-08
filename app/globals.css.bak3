@@ -376,104 +376,6 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* =============================================================================
-   HOT DEAL CARDS (tier1) — wide horizontal cards with real prices
-   ============================================================================= */
-.hot-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-.hot-card {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.25s var(--ease);
-  box-shadow: var(--shadow-card);
-  text-decoration: none;
-  color: inherit;
-}
-.hot-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-card-hover);
-  border-color: var(--border-strong);
-}
-.hot-card:hover .hot-card-img img { transform: scale(1.05); }
-
-.hot-card-img {
-  position: relative;
-  background: var(--bg-soft);
-  overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-}
-.hot-card-img img {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  transition: transform 0.5s var(--ease);
-}
-.hot-card-img-overlay {
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 100%);
-  pointer-events: none;
-}
-
-.hot-card-body {
-  padding: 16px 18px;
-  display: flex; flex-direction: column;
-  gap: 4px;
-}
-.hot-card-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: #d97706;
-  letter-spacing: 0.02em;
-  margin-bottom: 4px;
-}
-.hot-card-title {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  line-height: 1.2;
-}
-.hot-card-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  display: flex; gap: 6px;
-  flex-wrap: wrap;
-}
-.hot-card-price {
-  margin-top: auto;
-  display: flex; align-items: baseline; gap: 6px;
-}
-.hot-card-from {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 500;
-}
-.hot-card-amount {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
-@media (max-width: 1023px) {
-  .hot-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 480px) {
-  .hot-card { grid-template-columns: 110px 1fr; }
-  .hot-card-title { font-size: 17px; }
-  .hot-card-amount { font-size: 19px; }
-}
-
-/* =============================================================================
    DESTINATION CARDS — Airbnb / Booking style
    Photo fills whole card, gradient overlay at bottom, text floats over photo
    ============================================================================= */
@@ -511,14 +413,11 @@ a { color: inherit; text-decoration: none; }
 .dest-overlay {
   position: absolute;
   inset: 0;
-  /* Heavier dark gradient: bottom 35% of card is solidly tinted so white text
-     stays readable even over white walls, sky, snow, etc. Top 50% stays clear
-     so the photo subject is visible. */
   background: linear-gradient(180deg,
     rgba(0,0,0,0) 0%,
-    rgba(0,0,0,0) 45%,
-    rgba(0,0,0,0.5) 70%,
-    rgba(0,0,0,0.92) 100%);
+    rgba(0,0,0,0) 40%,
+    rgba(0,0,0,0.35) 75%,
+    rgba(0,0,0,0.75) 100%);
   pointer-events: none;
 }
 
@@ -530,25 +429,17 @@ a { color: inherit; text-decoration: none; }
   z-index: 2;
 }
 .dest-info .name {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  margin-bottom: 4px;
-  line-height: 1.15;
-  /* Triple text-shadow stack — works even on bright backgrounds */
-  text-shadow:
-    0 1px 2px rgba(0,0,0,0.9),
-    0 2px 6px rgba(0,0,0,0.6),
-    0 0 12px rgba(0,0,0,0.4);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 .dest-info .price {
-  font-size: 14px;
-  font-weight: 600;
-  opacity: 1;
-  letter-spacing: -0.005em;
-  text-shadow:
-    0 1px 2px rgba(0,0,0,0.9),
-    0 1px 4px rgba(0,0,0,0.6);
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.92;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 
 .dest-badge {
