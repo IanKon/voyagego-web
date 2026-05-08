@@ -7,12 +7,9 @@ import { NextRequest, NextResponse } from "next/server";
 //  Or 404 if no photo found.
 // =============================================================================
 
-// Caching is handled via:
-//  - per-fetch `next: { revalidate }` on the upstream Pexels call
-//  - Cache-Control header on our response (s-maxage)
-// We deliberately do NOT export `revalidate` at the segment level — Next.js 16
-// rejects this pattern when combined with dynamic request handling, causing
-// "Invalid segment configuration export" build failures.
+// Cache results for 30 days at the CDN edge — same city will not hit Pexels again
+// for a month, which is good both for speed and for staying under the rate limit.
+export const revalidate = 60 * 60 * 24 * 30; // 30 days in seconds
 
 // Whitelist pattern: letters, spaces, hyphens, apostrophes only.
 // Length 2..40 chars. Prevents injection / abuse via arbitrary query params.
