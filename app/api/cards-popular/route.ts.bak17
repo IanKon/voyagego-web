@@ -20,17 +20,14 @@ const TRIP_SID = "309639758";
 
 // 8 famous bucket-list cities. Same for every origin so users see classics.
 // Order matters: top of grid is most iconic.
-// Trip.com expects city codes for `acity`, not airport codes.
-// E.g. for Paris use "PAR" (city), not "CDG" (airport) — otherwise Trip
-// sometimes fails to find the route or sends users to a generic page.
 const POPULAR_CITIES: { code: string; name: string }[] = [
-  { code: "PAR", name: "Paris" },
-  { code: "ROM", name: "Rome" },
+  { code: "CDG", name: "Paris" },
+  { code: "FCO", name: "Rome" },
   { code: "BCN", name: "Barcelona" },
-  { code: "LON", name: "London" },
+  { code: "LHR", name: "London" },
   { code: "AMS", name: "Amsterdam" },
-  { code: "TYO", name: "Tokyo" },
-  { code: "NYC", name: "New York" },
+  { code: "HND", name: "Tokyo" },
+  { code: "JFK", name: "New York" },
   { code: "DXB", name: "Dubai" },
 ];
 
