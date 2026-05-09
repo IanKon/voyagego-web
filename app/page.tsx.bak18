@@ -279,7 +279,6 @@ export default function Page() {
   const [resultsHTML, setResultsHTML] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
   const [popularCards, setPopularCards] = useState<Card[]>([]);
-  const [showRuBanner, setShowRuBanner] = useState(false);
   const [geo, setGeo] = useState<{ city: string; airport: string; country: string }>({
     city: "Lisbon", airport: "LIS", country: "PT",
   });
@@ -301,16 +300,6 @@ export default function Page() {
             airport: data.airport || "LIS",
             country: data.country || "PT",
           });
-          // If user is from RU/BY/KZ, suggest the Russian-language site.
-          // We respect a "dismissed" flag in sessionStorage so we only nag once per session.
-          const ruCountries = ["RU", "BY", "KZ"];
-          if (ruCountries.includes(data.country)) {
-            try {
-              if (!sessionStorage.getItem("ru_banner_dismissed")) {
-                setShowRuBanner(true);
-              }
-            } catch { /* sessionStorage unavailable */ }
-          }
         }
       })
       .catch(() => { /* keep default Lisbon */ });
@@ -467,43 +456,6 @@ export default function Page() {
 
   return (
     <>
-      {/* RU site redirect banner — shown ONCE per session if user is from RU/BY/KZ */}
-      {showRuBanner && (
-        <div style={{
-          background: "linear-gradient(135deg, #0066ff 0%, #5856d6 100%)",
-          color: "white", padding: "14px 20px",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          gap: 16, flexWrap: "wrap",
-          fontSize: 14, fontWeight: 500,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-        }}>
-          <span>🇷🇺 Доступна русская версия с Aviasales, Островком и оплатой в рублях.</span>
-          <a
-            href="https://ru.voyagego.world"
-            style={{
-              background: "white", color: "#0066ff",
-              padding: "8px 16px", borderRadius: 999,
-              textDecoration: "none", fontWeight: 600, fontSize: 13,
-            }}
-          >
-            Перейти на ru.voyagego.world
-          </a>
-          <button
-            onClick={() => {
-              setShowRuBanner(false);
-              try { sessionStorage.setItem("ru_banner_dismissed", "1"); } catch {}
-            }}
-            style={{
-              background: "transparent", border: "1px solid rgba(255,255,255,0.4)",
-              color: "white", padding: "6px 12px", borderRadius: 999,
-              cursor: "pointer", fontSize: 12,
-            }}
-          >
-            Не сейчас
-          </button>
-        </div>
-      )}
-
       {/* NAV */}
       <nav className="nav">
         <div className="logo"><BrandLogo /></div>
